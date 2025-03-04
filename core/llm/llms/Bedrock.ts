@@ -1,7 +1,8 @@
 import {
   BedrockRuntimeClient,
+  ContentBlock,
   ConverseStreamCommand,
-  InvokeModelCommand,
+  InvokeModelCommand
 } from "@aws-sdk/client-bedrock-runtime";
 import { fromIni } from "@aws-sdk/credential-providers";
 
@@ -13,6 +14,7 @@ import {
 } from "../../index.js";
 import { renderChatMessage } from "../../util/messageContent.js";
 import { BaseLLM } from "../index.js";
+import { PROVIDER_PROMPT_CACHING_SUPPORT } from "../promptCachingSupport.js";
 import { PROVIDER_TOOL_SUPPORT } from "../toolSupport.js";
 
 interface ModelConfig {
@@ -29,6 +31,21 @@ interface ToolUseState {
   input: string;
 }
 
+/**
+ * Interface for tracking cache metrics from Bedrock responses
+ */
+interface CacheMetrics {
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
+}
+
+/**
+ * Interface for cache point blocks in Bedrock API
+ */
+interface CachePointBlock {
+  cachePoint: { type: string };
+}
+
 class Bedrock extends BaseLLM {
   static providerName = "bedrock";
   static defaultOptions: Partial<LLMOptions> = {
@@ -39,6 +56,7 @@ class Bedrock extends BaseLLM {
   };
 
   private _currentToolResponse: Partial<ToolUseState> | null = null;
+  private _cacheMetrics: CacheMetrics = {};
 
   public requestOptions: { region?: string; credentials?: any; headers?: Record<string, string> };
 
@@ -121,13 +139,25 @@ class Bedrock extends BaseLLM {
       throw new Error("No stream received from Bedrock API");
     }
 
+    // Reset cache metrics for this request
+    this._cacheMetrics = {};
+
     try {
       for await (const chunk of response.stream) {
-
+        // Log the chunk for debugging
         console.log(chunk);
 
-        if (chunk.contentBlockDelta?.delta) {
+        // Track cache metrics if available
+        // Note: We're using 'any' type here because the AWS SDK types don't include cache metrics yet
+        const anyChunk = chunk as any;
+        if (anyChunk.cacheReadInputTokens !== undefined) {
+          this._cacheMetrics.cacheReadInputTokens = anyChunk.cacheReadInputTokens;
+        }
+        if (anyChunk.cacheWriteInputTokens !== undefined) {
+          this._cacheMetrics.cacheWriteInputTokens = anyChunk.cacheWriteInputTokens;
+        }
 
+        if (chunk.contentBlockDelta?.delta) {
           // Handle text content
           if (chunk.contentBlockDelta.delta.text) {
             yield { role: "assistant", content: chunk.contentBlockDelta.delta.text };
@@ -186,6 +216,11 @@ class Bedrock extends BaseLLM {
       }
       throw new Error("Error processing Bedrock stream: Unknown error occurred");
     }
+
+    // Log cache metrics if available
+    if (this._cacheMetrics.cacheReadInputTokens || this._cacheMetrics.cacheWriteInputTokens) {
+      console.log("Cache metrics:", this._cacheMetrics);
+    }
   }
 
   /**
@@ -201,21 +236,49 @@ class Bedrock extends BaseLLM {
     const convertedMessages = this._convertMessages(messages);
 
     const supportsTools = PROVIDER_TOOL_SUPPORT.bedrock?.(options.model || "") ?? false;
+
+    // Check if the model supports caching
+    const supportsCaching = PROVIDER_PROMPT_CACHING_SUPPORT.bedrock?.(options.model || "") ?? false;
+    const shouldEnableCaching = supportsCaching &&
+      (this.cacheBehavior?.cacheSystemMessage || this.cacheBehavior?.cacheConversation);
+
+    // Add cache checkpoint to system message if caching is enabled
+    let systemContent = undefined;
+    if (this.systemMessage) {
+      systemContent = shouldEnableCaching && this.cacheBehavior?.cacheSystemMessage
+        ? [{
+            text: this.systemMessage,
+            cachePoint: { type: "default" }
+          }]
+        : [{ text: this.systemMessage } as ContentBlock];
+    }
+
+  // Add cache checkpoint to tools if caching is enabled
+  let toolConfig = undefined;
+  if (supportsTools && options.tools) {
+    let tools = options.tools.map(tool => ({
+      toolSpec: {
+        name: tool.function.name,
+        description: tool.function.description,
+        inputSchema: {
+          json: tool.function.parameters
+        }
+      }
+    }));
+    
+    // Add cache checkpoint at the end of the tools array if caching is enabled
+    if (shouldEnableCaching && this.cacheBehavior?.cacheConversation) {
+      tools.push({ cachePoint: { type: "default" } } as any);
+    }
+    
+    toolConfig = { tools };
+  }
+
     return {
       modelId: options.model,
       messages: convertedMessages,
-      system: this.systemMessage ? [{ text: this.systemMessage }] : undefined,
-      toolConfig: supportsTools && options.tools ? {
-        tools: options.tools.map(tool => ({
-          toolSpec: {
-            name: tool.function.name,
-            description: tool.function.description,
-            inputSchema: {
-              json: tool.function.parameters
-            }
-          }
-        }))
-      } : undefined,
+      system: systemContent,
+      toolConfig: toolConfig,
       inferenceConfig: {
         maxTokens: options.maxTokens,
         temperature: options.temperature,
@@ -240,6 +303,10 @@ class Bedrock extends BaseLLM {
     if (message.role === "system") {
       return;
     }
+
+    // Check if the model supports caching
+    const supportsCaching = PROVIDER_PROMPT_CACHING_SUPPORT.bedrock?.(this.model || "") ?? false;
+    const shouldEnableCaching = supportsCaching && this.cacheBehavior?.cacheConversation;
 
     // Tool response handling
     if (message.role === "tool") {
@@ -276,6 +343,17 @@ class Bedrock extends BaseLLM {
 
     // Standard text message
     if (typeof message.content === "string") {
+      // For user messages, add cache checkpoint if caching is enabled
+      if (shouldEnableCaching && message.role === "user") {
+        return {
+          role: message.role,
+          content: [
+            { text: message.content } as ContentBlock,
+            { cachePoint: { type: "default" } } as any
+          ]
+        };
+      }
+
       return {
         role: message.role,
         content: [{ text: message.content }]
@@ -284,39 +362,78 @@ class Bedrock extends BaseLLM {
 
     // Improved multimodal content handling
     if (Array.isArray(message.content)) {
+      const content: ContentBlock[] = message.content.map(part => {
+        if (part.type === "text") {
+          return { text: part.text } as ContentBlock;
+        }
+        if (part.type === "imageUrl" && part.imageUrl) {
+          try {
+            const [mimeType, base64Data] = part.imageUrl.url.split(",");
+            const format = mimeType.split("/")[1]?.split(";")[0] || "jpeg";
+            return {
+              image: {
+                format,
+                source: {
+                  bytes: Buffer.from(base64Data, "base64")
+                }
+              }
+            }
+          } catch (error) {
+            console.warn(`Failed to process image: ${error}`);
+            return null;
+          }
+        }
+        return null;
+      }).filter(Boolean) as ContentBlock[];
+
+      // Add cache checkpoint for user messages if caching is enabled
+      if (shouldEnableCaching && message.role === "user") {
+        content.push({ cachePoint: { type: "default" }} as any);
+      }
+
       return {
         role: message.role,
-        content: message.content.map(part => {
-          if (part.type === "text") {
-            return { text: part.text };
-          }
-          if (part.type === "imageUrl" && part.imageUrl) {
-            try {
-              const [mimeType, base64Data] = part.imageUrl.url.split(",");
-              const format = mimeType.split("/")[1]?.split(";")[0] || "jpeg";
-              return {
-                image: {
-                  format,
-                  source: {
-                    bytes: Buffer.from(base64Data, "base64")
-                  }
-                }
-              };
-            } catch (error) {
-              console.warn(`Failed to process image: ${error}`);
-              return null;
-            }
-          }
-          return null;
-        }).filter(Boolean)
+        content
       };
     }
   }
 
   private _convertMessages(messages: ChatMessage[]): any[] {
+    // Find the last two user messages for caching
+    const supportsCaching = PROVIDER_PROMPT_CACHING_SUPPORT.bedrock?.(this.model || "") ?? false;
+    const shouldEnableCaching = supportsCaching && this.cacheBehavior?.cacheConversation;
+
+    let lastTwoUserMsgIndices: number[] = [];
+    if (shouldEnableCaching) {
+      lastTwoUserMsgIndices = messages
+        .map((msg, index) => (msg.role === "user" ? index : -1))
+        .filter((index) => index !== -1)
+        .slice(-2);
+    }
+
     return messages
-      .map((message) => {
+      .map((message, index) => {
         try {
+          // For the last two user messages, we want to add cache points
+          // Similar to Anthropic's implementation
+          if (shouldEnableCaching &&
+              message.role === "user" &&
+              lastTwoUserMsgIndices.includes(index)) {
+            const convertedMsg = this._convertMessage(message);
+            // Ensure we have a cachePoint in the content
+            if (convertedMsg && convertedMsg.content) {
+              // Check if we already have a cachePoint (added in _convertMessage)
+              const hasCachePoint = convertedMsg.content.some(
+                (item: any) => item.cachePoint
+              );
+
+              if (!hasCachePoint) {
+                convertedMsg.content.push({ cachePoint: { type: "default" } } as any);
+              }
+            }
+            return convertedMsg;
+          }
+
           return this._convertMessage(message);
         } catch (error) {
           console.error(`Failed to convert message: ${error}`);
