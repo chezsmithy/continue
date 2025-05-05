@@ -114,12 +114,12 @@ async function package(target, os, arch, exe) {
 
   // *** Install @lancedb binary ***
   const lancePackageToInstall = {
-    "darwin-arm64": "@lancedb/vectordb-darwin-arm64",
-    "darwin-x64": "@lancedb/vectordb-darwin-x64",
-    "linux-arm64": "@lancedb/vectordb-linux-arm64-gnu",
-    "linux-x64": "@lancedb/vectordb-linux-x64-gnu",
-    "win32-x64": "@lancedb/vectordb-win32-x64-msvc",
-    "win32-arm64": "@lancedb/vectordb-win32-x64-msvc", // they don't have a win32-arm64 build
+    "darwin-arm64": "@lancedb/lancedb-darwin-arm64",
+    "darwin-x64": "@lancedb/lancedb-darwin-x64",
+    "linux-arm64": "@lancedb/lancedb-linux-arm64-gnu",
+    "linux-x64": "@lancedb/lancedb-linux-x64-gnu",
+    "win32-x64": "@lancedb/lancedb-win32-x64-msvc",
+    "win32-arm64": "@lancedb/lancedb-win32-x64-msvc", // they don't have a win32-arm64 build
   }[target];
   await installNodeModuleInTempDirAndCopyToCurrent(
     lancePackageToInstall,
@@ -203,11 +203,11 @@ async function package(target, os, arch, exe) {
           ? "win32-x64/esbuild.exe"
           : `${target}/bin/esbuild`
     }`,
-    `out/node_modules/@lancedb/vectordb-${
+    `out/node_modules/@lancedb/lancedb-${
       os === "win32"
         ? "win32-x64-msvc"
         : `${target}${os === "linux" ? "-gnu" : ""}`
-    }/index.node`,
+    }/lancedb.node`,
     `out/node_modules/esbuild/lib/main.js`,
     `out/node_modules/esbuild/bin/esbuild`,
   ]);

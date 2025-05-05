@@ -1,12 +1,16 @@
 import { jest } from "@jest/globals";
-import lance from "vectordb";
+// Use type-only import 
+import type * as LanceType from "@lancedb/lancedb";
 
 import { testConfigHandler, testIde } from "../test/fixtures";
+import { addToTestDir } from "../test/testDir";
 import { getLanceDbPath } from "../util/paths";
 
 import { LanceDbIndex } from "./LanceDbIndex";
 import { DatabaseConnection, SqliteDb } from "./refreshIndex";
 import {
+  mockFileContents,
+  mockFilename,
   mockPathAndCacheKey,
   mockTag,
   updateIndexAndAwaitGenerator,
@@ -15,10 +19,12 @@ import { IndexResultType } from "./types";
 
 jest.useFakeTimers();
 
-describe.skip("ChunkCodebaseIndex", () => {
+describe("ChunkCodebaseIndex", () => {
   let index: LanceDbIndex;
   let sqliteDb: DatabaseConnection;
-  let lanceDb: lance.Connection;
+  let lanceDb: LanceType.Connection;
+  // Store lance dynamically like the main class does
+  let lance: typeof LanceType;
 
   async function getAllSqliteLanceDbCache() {
     return await sqliteDb.all("SELECT * FROM lance_db_cache");
@@ -33,6 +39,12 @@ describe.skip("ChunkCodebaseIndex", () => {
       throw new Error("No embeddings model selected");
     }
 
+    // Setup test file
+    addToTestDir([[mockFilename, mockFileContents]]);
+
+    // Dynamically import lance just like the LanceDbIndex class does
+    lance = await import("@lancedb/lancedb");
+
     index = (await LanceDbIndex.create(
       mockConfig.selectedModelByRole.embed,
       testIde.readFile.bind(testIde),
@@ -40,6 +52,24 @@ describe.skip("ChunkCodebaseIndex", () => {
 
     sqliteDb = await SqliteDb.get();
     lanceDb = await lance.connect(getLanceDbPath());
+  });
+
+  // Proper cleanup to prevent open handles
+  afterAll(async () => {
+    // Close database connections
+    if (sqliteDb) {
+      await sqliteDb.close();
+    }
+    
+    // Close LanceDB connection if available
+    if (lanceDb && typeof lanceDb.close === 'function') {
+      await lanceDb.close();
+    }
+    
+    // Force garbage collection if possible
+    if (global.gc) {
+      global.gc();
+    }
   });
 
   /**

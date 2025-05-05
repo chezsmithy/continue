@@ -23,7 +23,9 @@ import {
   RefreshIndexResults,
 } from "./types";
 
-import type * as LanceType from "vectordb";
+// Use type-only import from official package instead of custom declaration file
+import type * as LanceType from "@lancedb/lancedb";
+import { connect } from "@lancedb/lancedb";
 
 interface LanceDbRow {
   uuid: string;
@@ -42,7 +44,7 @@ export class LanceDbIndex implements CodebaseIndex {
 
   relativeExpectedTime: number = 13;
   get artifactId(): string {
-    return `vectordb::${this.embeddingsProvider?.embeddingId}`;
+    return `lancedb::${this.embeddingsProvider?.embeddingId}`;
   }
 
   /**
@@ -63,7 +65,9 @@ export class LanceDbIndex implements CodebaseIndex {
     }
 
     try {
-      this.lance = await import("vectordb");
+      this.lance = await import("@lancedb/lancedb");
+      await this.lance?.connect(getLanceDbPath());
+
       return new LanceDbIndex(embeddingsProvider, readFile);
     } catch (err) {
       console.error("Failed to load LanceDB:", err);
@@ -244,10 +248,10 @@ export class LanceDbIndex implements CodebaseIndex {
     await this.createSqliteCacheTable(sqliteDb);
 
     const lanceTableName = this.tableNameForTag(tag);
-    const lanceDb = await lance.connect(getLanceDbPath());
+    const { connect } = lance;
+    const lanceDb = await connect(getLanceDbPath());
     const existingLanceTables = await lanceDb.tableNames();
-
-    let lanceTable: LanceType.Table<number[]> | undefined = undefined;
+    let lanceTable: LanceType.Table | undefined = undefined;
     let needToCreateLanceTable = !existingLanceTables.includes(lanceTableName);
 
     const addComputedLanceDbRows = async (
@@ -314,7 +318,9 @@ export class LanceDbIndex implements CodebaseIndex {
           needToCreateLanceTable = false;
           await lanceTable.add(lanceRows);
         } else {
-          await lanceTable?.add(lanceRows);
+          if (lanceTable) {
+            await lanceTable.add(lanceRows);
+          }
         }
       }
 
@@ -335,9 +341,11 @@ export class LanceDbIndex implements CodebaseIndex {
       }
 
       for (const { path, cacheKey } of toDel) {
-        await lanceTable.delete(
-          `cachekey = '${cacheKey}' AND path = '${path}'`,
-        );
+        if (lanceTable) {
+          await lanceTable.delete(
+            `cachekey = '${cacheKey}' AND path = '${path}'`,
+          );
+        }
 
         accumulatedProgress += 1 / toDel.length / 3;
         yield {
@@ -389,13 +397,13 @@ export class LanceDbIndex implements CodebaseIndex {
     }
 
     const table = await db.openTable(tableName);
-    let query = table.search(vector);
+    let query = table.vectorSearch(vector);
     if (directory) {
       query = query.where(`path LIKE '${directory}%'`).limit(300);
     } else {
       query = query.limit(n);
     }
-    const results = await query.execute();
+    const results = await query.toArray();
     return results.slice(0, n) as any;
   }
 
@@ -405,8 +413,10 @@ export class LanceDbIndex implements CodebaseIndex {
     tags: BranchAndDir[],
     filterDirectory: string | undefined,
   ): Promise<Chunk[]> {
+    console.log("DEBUG: Starting retrieve with lance:", LanceDbIndex.lance);
     const lance = LanceDbIndex.lance!;
     if (!this.embeddingsProvider) {
+      console.log("DEBUG: No embeddings provider, returning empty array");
       return [];
     }
 
@@ -423,12 +433,30 @@ export class LanceDbIndex implements CodebaseIndex {
       [vector] = await this.embeddingsProvider.embed(
         chunks.map((c) => c.content),
       );
+      console.log("DEBUG: Successfully created embedding vector");
     } catch (err) {
+      console.log("DEBUG: Failed to use chunked content for embedding, using whole query instead");
       // If we fail to chunk, we just use what was happening before.
       [vector] = await this.embeddingsProvider.embed([query]);
     }
 
-    const db = await lance.connect(getLanceDbPath());
+    console.log("DEBUG: Attempting to connect to LanceDB in retrieve method...");
+    let db;
+    try {
+      if (!lance || typeof lance.connect !== 'function') {
+        console.error("ERROR in retrieve: Lance or lance.connect is not defined correctly:", 
+          lance, 
+          lance ? `Has connect: ${typeof lance.connect === 'function'}` : "lance is falsy"
+        );
+        throw new Error("Lance or lance.connect is not defined correctly in retrieve");
+      }
+      db = await lance.connect(getLanceDbPath());
+      console.log("DEBUG: Successfully connected to LanceDB in retrieve method");
+    } catch (err) {
+      console.error("ERROR: Failed to connect to LanceDB in retrieve:", err);
+      console.error("ERROR: Stack trace:", err instanceof Error ? err.stack : "No stack trace");
+      throw new Error(`Failed to connect to LanceDB in retrieve: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     let allResults = [];
     for (const tag of tags) {
@@ -442,8 +470,13 @@ export class LanceDbIndex implements CodebaseIndex {
       allResults.push(...results);
     }
 
+    // Sort results by distance or score
     allResults = allResults
-      .sort((a, b) => a._distance - b._distance)
+      .sort((a, b) => {
+        const distanceA = a.score !== undefined ? a.score : a.distance;
+        const distanceB = b.score !== undefined ? b.score : b.distance;
+        return distanceA - distanceB;
+      })
       .slice(0, n);
 
     const sqliteDb = await SqliteDb.get();

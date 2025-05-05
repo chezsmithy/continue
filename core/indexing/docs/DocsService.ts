@@ -35,7 +35,7 @@ import {
 import DocsCrawler, { DocsCrawlerType, PageData } from "./crawlers/DocsCrawler";
 import { runLanceMigrations, runSqliteMigrations } from "./migrations";
 
-import type * as LanceType from "vectordb";
+import type * as LanceType from "@lancedb/lancedb";
 import { LLMError } from "../../llm";
 import { DocsCache, SiteIndexingResults } from "./DocsCache";
 
@@ -119,7 +119,7 @@ const siteIndexingConfigsAreEqual = (
     - add/index one
 */
 export default class DocsService {
-  private static lance: typeof LanceType | null = null;
+  private static lance: any | null = null;
   static lanceTableName = "docs";
   static sqlitebTableName = "docs";
 
@@ -157,7 +157,7 @@ export default class DocsService {
 
     try {
       if (!DocsService.lance) {
-        DocsService.lance = await import("vectordb");
+        DocsService.lance = (await import("@lancedb/lancedb")).default;
       }
       return DocsService.lance;
     } catch (err) {
@@ -851,10 +851,29 @@ export default class DocsService {
         initializationVector: [],
         startUrl,
       });
-      const rows = (await table
-        .filter(`starturl = '${startUrl}'`)
-        .limit(1000)
-        .execute()) as LanceDbDocsRow[];
+      // Create a function that safely accesses LanceDB methods
+      function filterAndGetRows(table: any, startUrl: string): Promise<LanceDbDocsRow[]> {
+        if (typeof table.filter !== 'function') {
+          throw new Error("LanceDB table missing filter method");
+        }
+        
+        const filtered = table.filter(`starturl = '${startUrl}'`);
+        
+        if (typeof filtered.limit !== 'function') {
+          throw new Error("LanceDB filtered query missing limit method");
+        }
+        
+        const limited = filtered.limit(1000);
+        
+        if (typeof limited.toArray !== 'function') {
+          throw new Error("LanceDB limited query missing toArray method");
+        }
+        
+        return limited.toArray();
+      }
+      
+      // Use the function with runtime validation
+      const rows = await filterAndGetRows(table, startUrl);
 
       return {
         startUrl,
@@ -890,10 +909,10 @@ export default class DocsService {
     let docs: LanceDbDocsRow[] = [];
     try {
       docs = await table
-        .search(vector)
+        .vectorSearch(vector)
         .limit(nRetrieve)
         .where(`starturl = '${startUrl}'`)
-        .execute();
+        .toArray();
     } catch (e: any) {
       console.warn("Error retrieving chunks from LanceDB", e);
     }

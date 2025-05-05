@@ -51,12 +51,12 @@ for (let i = 2; i < process.argv.length; i++) {
 }
 
 const targetToLanceDb = {
-  "darwin-arm64": "@lancedb/vectordb-darwin-arm64",
-  "darwin-x64": "@lancedb/vectordb-darwin-x64",
-  "linux-arm64": "@lancedb/vectordb-linux-arm64-gnu",
-  "linux-x64": "@lancedb/vectordb-linux-x64-gnu",
-  "win32-x64": "@lancedb/vectordb-win32-x64-msvc",
-  "win32-arm64": "@lancedb/vectordb-win32-arm64-msvc",
+  "darwin-arm64": "@lancedb/lancedb-darwin-arm64",
+  "darwin-x64": "@lancedb/lancedb-darwin-x64",
+  "linux-arm64": "@lancedb/lancedb-linux-arm64-gnu",
+  "linux-x64": "@lancedb/lancedb-linux-x64-gnu",
+  "win32-x64": "@lancedb/lancedb-win32-x64-msvc",
+  "win32-arm64": "@lancedb/lancedb-win32-arm64-msvc",
 };
 
 // Bundles the extension into one file
@@ -72,7 +72,7 @@ async function buildWithEsbuild() {
       "llamaTokenizerWorkerPool.mjs",
       "tiktokenWorkerPool.mjs",
       "vscode",
-      "./index.node",
+      "./lancedb.node",
     ],
     format: "cjs",
     platform: "node",
@@ -289,9 +289,11 @@ async function installNodeModuleInTempDirAndCopyToCurrent(packageName, toCopy) {
 
     // copy @lancedb to bin folders
     console.log("[info] Copying @lancedb files to bin");
+    const isWinTarget = target?.startsWith("win");
+    const isLinuxTarget = target?.startsWith("linux");
     fs.copyFileSync(
-      `node_modules/${targetToLanceDb[target]}/index.node`,
-      `${targetDir}/index.node`,
+      `node_modules/${targetToLanceDb[target]}/lancedb.${target}${isWinTarget ? "-msvc" : ""}${isLinuxTarget ? "-gnu" : ""}.node`,
+      `${targetDir}/lancedb.node`,
     );
 
     // Informs the `continue-binary` of where to look for node_sqlite3.node
@@ -304,11 +306,13 @@ async function installNodeModuleInTempDirAndCopyToCurrent(packageName, toCopy) {
 
   const pathsToVerify = [];
   for (const target of targets) {
+    const isWinTarget = target?.startsWith("win");
+    const isLinuxTarget = target?.startsWith("linux");
     const exe = target.startsWith("win") ? ".exe" : "";
     const targetDir = `bin/${target}`;
     pathsToVerify.push(
       `${targetDir}/continue-binary${exe}`,
-      `${targetDir}/index.node`, // @lancedb
+      `${targetDir}/lancedb.node`, // @lancedb
       `${targetDir}/build/Release/node_sqlite3.node`,
     );
   }

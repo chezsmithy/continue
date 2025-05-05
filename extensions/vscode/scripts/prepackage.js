@@ -347,9 +347,9 @@ const isMacTarget = target?.startsWith("darwin");
   if (isInGitHubAction && isArmTarget) {
     // lancedb binary
     const packageToInstall = {
-      "darwin-arm64": "@lancedb/vectordb-darwin-arm64",
-      "linux-arm64": "@lancedb/vectordb-linux-arm64-gnu",
-      "win32-arm64": "@lancedb/vectordb-win32-arm64-msvc",
+      "darwin-arm64": "@lancedb/lancedb-darwin-arm64",
+      "linux-arm64": "@lancedb/lancedb-linux-arm64-gnu",
+      "win32-arm64": "@lancedb/lancedb-win32-arm64-msvc",
     }[target];
     console.log(
       "[info] Downloading pre-built lancedb binary: " + packageToInstall,
@@ -528,7 +528,7 @@ const isMacTarget = target?.startsWith("darwin");
           ? "win32-x64/esbuild.exe"
           : `${target}/bin/esbuild`
     }`,
-    `out/node_modules/@lancedb/vectordb-${target}${isWinTarget ? "-msvc" : ""}${isLinuxTarget ? "-gnu" : ""}/index.node`,
+    `out/node_modules/@lancedb/lancedb-${target}${isWinTarget ? "-msvc" : ""}${isLinuxTarget ? "-gnu" : ""}/lancedb.${target}.node`,
     `out/node_modules/esbuild/lib/main.js`,
     `out/node_modules/esbuild/bin/esbuild`,
   ]);

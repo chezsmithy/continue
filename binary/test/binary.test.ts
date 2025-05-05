@@ -68,7 +68,7 @@ describe("Test Suite", () => {
     const expectedItems = [
       `continue-binary${exe}`,
       `esbuild${exe}`,
-      "index.node",
+      "lancedb.node",
       "package.json",
       "build/Release/node_sqlite3.node",
     ];
@@ -83,7 +83,7 @@ describe("Test Suite", () => {
         console.log("Execute permissions set for the binary");
 
         if (platform === "darwin") {
-          const indexNodePath = path.join(binaryDir, "index.node");
+          const indexNodePath = path.join(binaryDir, "lancedb.node");
           const filesToUnquarantine = [binaryPath, indexNodePath];
 
           for (const file of filesToUnquarantine) {

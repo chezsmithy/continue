@@ -1,5 +1,5 @@
+import { type Table } from "@lancedb/lancedb";
 import { type Database } from "sqlite";
-import { type Table } from "vectordb";
 
 import { editConfigFile, migrate } from "../../util/paths.js";
 
@@ -11,9 +11,12 @@ export async function runLanceMigrations(table: Table) {
       "rename_baseurl_column_for_lance_docs",
       async () => {
         try {
-          const schema = await table.schema;
-
-          if (schema.fields.some((field: any) => field.name === "baseurl")) {
+          // Handle the schema safely with runtime checks
+          const schema: any = await table.schema;
+          
+          if (schema && typeof schema === 'object' && 
+              Array.isArray(schema.fields) && 
+              schema.fields.some((field: any) => field && field.name === "baseurl")) {
             await table.alterColumns([{ path: "baseurl", rename: "starturl" }]);
           }
         } finally {

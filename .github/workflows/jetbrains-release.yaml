@@ -393,7 +393,7 @@ jobs:
           cd ../../binary/bin/${{ matrix.platform }}-${{ matrix.arch }}
           chmod +x continue-binary
           chmod +x build/Release/node_sqlite3.node
-          chmod +x index.node
+          chmod +x lancedb.node
         if: ${{ matrix.platform }} != 'win32'
 
       # Run tests for binary
