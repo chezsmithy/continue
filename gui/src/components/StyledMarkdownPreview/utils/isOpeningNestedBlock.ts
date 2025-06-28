@@ -17,50 +17,34 @@ export function isOpeningNestedBlock(
   currentIndex: number,
   nestCount: number,
 ): boolean {
-  // Simulate what would happen if we continue processing from this point
-  // Count how many blocks would need to be closed vs opened
+  // We only allow one level of nesting. Therefore if we're already inside
+  // a nested block (nestCount > 1) and encounter a line of bare backticks,
+  // it must be closing the current block.
+  if (nestCount > 1) {
+    return false;
+  }
 
-  let simulatedNestCount = nestCount;
+  // Look ahead and count bare backtick lines until we hit a terminator
+  // for the current markdown block.
   let bareBackticksAhead = 0;
-
   for (let j = currentIndex + 1; j < trimmedLines.length; j++) {
     const line = trimmedLines[j];
 
-    // Count bare backticks lines
     if (line.match(/^`+$/)) {
       bareBackticksAhead++;
-    } else if (line.startsWith("```")) {
-      // Non-bare backticks (with language/type) always open
-      simulatedNestCount++;
+      continue;
     }
 
-    // Stop looking if we hit what appears to be the end of current markdown block
-    if (nestCount === 1) {
-      // At top level of markdown block - check for block terminators
-      if (
-        line.startsWith("~~~") ||
-        (line.startsWith("```") && headerIsMarkdown(line.replaceAll("`", "")))
-      ) {
-        break;
-      }
+    if (
+      line.startsWith("~~~") ||
+      (line.startsWith("```") && headerIsMarkdown(line.replaceAll("`", "")))
+    ) {
+      break;
     }
   }
 
-  // The key insight: if we need the current backticks to close to get back to nestCount=1,
-  // and there are more bare backticks ahead than what we'd need to close everything,
-  // then this should open
-
-  if (nestCount > 1) {
-    // We're deeply nested, usually should close
-    return bareBackticksAhead > nestCount - 1;
-  }
-
-  // At top level (nestCount === 1), if there are exactly 2 ahead and we're at top level,
-  // this suggests: current=open, first_ahead=close, second_ahead=close_markdown
-  if (nestCount === 1 && bareBackticksAhead === 2) {
-    return true;
-  }
-
-  // Default to the original logic
+  // At the top level, a bare backtick line opens a nested block when an
+  // odd number of additional bare backtick lines appear before the end of
+  // the markdown block; otherwise it closes the block.
   return bareBackticksAhead % 2 === 1;
 }

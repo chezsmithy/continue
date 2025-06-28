@@ -42,8 +42,8 @@ test("isOpeningNestedBlock should handle multiple nested pairs", () => {
 
   expect(isOpeningNestedBlock(trimmedLines, 2, 1)).toBe(true); // 3 ahead = odd
   expect(isOpeningNestedBlock(trimmedLines, 3, 2)).toBe(false); // 2 ahead = even
-  expect(isOpeningNestedBlock(trimmedLines, 5, 2)).toBe(true); // 1 ahead = odd
-  expect(isOpeningNestedBlock(trimmedLines, 6, 1)).toBe(false); // 0 ahead = even
+  expect(isOpeningNestedBlock(trimmedLines, 5, 1)).toBe(true); // 1 ahead = odd
+  expect(isOpeningNestedBlock(trimmedLines, 6, 2)).toBe(false); // 0 ahead = even
 });
 
 test("isOpeningNestedBlock should return false when reaching end of markdown block via ~~~", () => {
@@ -152,6 +152,6 @@ test("isOpeningNestedBlock should handle complex realistic markdown structure", 
   ];
 
   expect(isOpeningNestedBlock(trimmedLines, 3, 1)).toBe(false); // 2 ahead = even
-  expect(isOpeningNestedBlock(trimmedLines, 7, 2)).toBe(true); // 1 ahead = odd
+  expect(isOpeningNestedBlock(trimmedLines, 7, 2)).toBe(false); // closing inside nested block
   expect(isOpeningNestedBlock(trimmedLines, 8, 1)).toBe(false); // 0 ahead = even
 });
