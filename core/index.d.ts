@@ -1011,6 +1011,7 @@ export interface ToolExtras {
   }) => void;
   config: ContinueConfig;
   codeBaseIndexer?: CodebaseIndexer;
+  updateSelectedModel?: (role: string, title: string) => Promise<void>;
 }
 
 export interface Tool {

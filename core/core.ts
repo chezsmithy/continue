@@ -871,6 +871,14 @@ export class Core {
       this.messenger.send("toolCallPartialOutput", params);
     };
 
+    // Define a callback for model switching
+    const updateSelectedModel = async (role: string, title: string) => {
+      const profileId =
+        this.configHandler.currentProfile?.profileDescription.id || "";
+      this.globalContext.updateSelectedModel(profileId, role as any, title);
+      await this.configHandler.reloadConfig();
+    };
+
     const result = await callTool(tool, toolCall, {
       config,
       ide: this.ide,
@@ -881,6 +889,7 @@ export class Core {
       toolCallId: toolCall.id,
       onPartialOutput,
       codeBaseIndexer: this.codeBaseIndexer,
+      updateSelectedModel,
     });
 
     return result;

@@ -6,7 +6,9 @@ import { editFileTool } from "./definitions/editFile";
 import { fetchUrlContentTool } from "./definitions/fetchUrlContent";
 import { globSearchTool } from "./definitions/globSearch";
 import { grepSearchTool } from "./definitions/grepSearch";
+import { listAvailableModelsTool } from "./definitions/listAvailableModelsTool";
 import { lsTool } from "./definitions/lsTool";
+import { modelSwitchTool } from "./definitions/modelSwitchTool";
 import { readCurrentlyOpenFileTool } from "./definitions/readCurrentlyOpenFile";
 import { readFileTool } from "./definitions/readFile";
 import { requestRuleTool } from "./definitions/requestRule";
@@ -33,6 +35,8 @@ const getBaseToolDefinitions = () => [
   lsTool,
   createRuleBlock,
   fetchUrlContentTool,
+  modelSwitchTool,
+  listAvailableModelsTool,
 ];
 
 export const getConfigDependentToolDefinitions = (

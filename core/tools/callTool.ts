@@ -9,7 +9,9 @@ import { createRuleBlockImpl } from "./implementations/createRuleBlock";
 import { fetchUrlContentImpl } from "./implementations/fetchUrlContent";
 import { fileGlobSearchImpl } from "./implementations/globSearch";
 import { grepSearchImpl } from "./implementations/grepSearch";
+import { listAvailableModelsImpl } from "./implementations/listAvailableModelsTool";
 import { lsToolImpl } from "./implementations/lsTool";
+import { modelSwitchImpl } from "./implementations/modelSwitchTool";
 import { readCurrentlyOpenFileImpl } from "./implementations/readCurrentlyOpenFile";
 import { readFileImpl } from "./implementations/readFile";
 import { requestRuleImpl } from "./implementations/requestRule";
@@ -169,6 +171,10 @@ export async function callBuiltInTool(
       return await requestRuleImpl(args, extras);
     case BuiltInToolNames.CodebaseTool:
       return await codebaseToolImpl(args, extras);
+    case BuiltInToolNames.ModelSwitch:
+      return await modelSwitchImpl(args, extras);
+    case BuiltInToolNames.ListAvailableModels:
+      return await listAvailableModelsImpl(args, extras);
     case BuiltInToolNames.ViewRepoMap:
       return await viewRepoMapImpl(args, extras);
     case BuiltInToolNames.ViewSubdirectory:
