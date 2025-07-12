@@ -247,7 +247,6 @@ class Bedrock extends BaseLLM {
         }
       }
     } catch (error: unknown) {
-      this._currentToolResponse = null;
       if (error instanceof Error) {
         if ("code" in error) {
           // AWS SDK specific errors
