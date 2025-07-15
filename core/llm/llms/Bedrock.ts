@@ -132,18 +132,17 @@ class Bedrock extends BaseLLM {
     const command = new ConverseStreamCommand(input);
 
     let response: ConverseStreamCommandOutput;
-    try {
       response = (await client.send(command, {
         abortSignal: signal,
       })) as ConverseStreamCommandOutput;
-    } catch (error: unknown) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Failed to communicate with Bedrock API: ${message}`);
-    }
+
 
     if (!response?.stream) {
       throw new Error("No stream received from Bedrock API");
+    }
+
+    if (response.$metadata.httpStatusCode === 499) {
+      return; // Aborted by user
     }
 
     // Reset cache metrics for new request
@@ -152,7 +151,7 @@ class Bedrock extends BaseLLM {
       cacheWriteInputTokens: 0,
     };
 
-    try {
+    if (response.$metadata.httpStatusCode === 200) {
       for await (const chunk of response.stream) {
         if (chunk.metadata?.usage) {
           console.log(`${JSON.stringify(chunk.metadata.usage)}`);
@@ -167,7 +166,6 @@ class Bedrock extends BaseLLM {
               role: "assistant",
               content: delta.text,
             };
-            continue;
           }
 
           // Handle text content
@@ -176,7 +174,6 @@ class Bedrock extends BaseLLM {
               role: "thinking",
               content: (delta as any).reasoningContent.text,
             };
-            continue;
           }
 
           // Handle signature for thinking
@@ -186,7 +183,6 @@ class Bedrock extends BaseLLM {
               content: "",
               signature: delta.reasoningContent.signature,
             };
-            continue;
           }
 
           // Handle redacted thinking
@@ -196,7 +192,6 @@ class Bedrock extends BaseLLM {
               content: "",
               redactedThinking: delta.redactedReasoning.data,
             };
-            continue;
           }
 
           if (delta.toolUse) {
@@ -243,22 +238,8 @@ class Bedrock extends BaseLLM {
               ],
             };
           }
-          continue;
         }
       }
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        if ("code" in error) {
-          // AWS SDK specific errors
-          throw new Error(
-            `AWS Bedrock stream error (${(error as any).code}): ${error.message}`,
-          );
-        }
-        throw new Error(`Error processing Bedrock stream: ${error.message}`);
-      }
-      throw new Error(
-        "Error processing Bedrock stream: Unknown error occurred",
-      );
     }
   }
 
