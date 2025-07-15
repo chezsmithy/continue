@@ -1,5 +1,6 @@
 import {
   BookOpenIcon,
+  ChartBarIcon,
   ChatBubbleLeftIcon,
   ChevronLeftIcon,
   CubeIcon,
@@ -20,6 +21,8 @@ import HoverItem from "../../InputToolbar/HoverItem";
 import { useLump } from "../LumpContext";
 import { ErrorsSectionTooltip } from "../sections/errors/ErrorsSectionTooltip";
 import { McpSectionTooltip } from "../sections/mcp/MCPTooltip";
+import { TokensSectionTooltip } from "../sections/tokens/TokensSectionTooltip";
+import { TokensToolbarIcon } from "../sections/tokens/TokensToolbarIcon";
 import { ToolsSectionTooltip } from "../sections/tool-policies/ToolPoliciesSectionTooltip";
 
 import { usesFreeTrialApiKey } from "core/config/usesFreeTrialApiKey";
@@ -65,6 +68,12 @@ const sections: Section[] = [
     title: "MCP",
     tooltip: <McpSectionTooltip />,
     icon: Squares2X2Icon,
+  },
+  {
+    id: "tokens",
+    title: "Tokens",
+    tooltip: <TokensSectionTooltip />,
+    icon: ChartBarIcon,
   },
   {
     id: "error",
@@ -211,21 +220,38 @@ export function BlockSettingsTopToolbar() {
             className={`${isToolbarExpanded ? "w-min" : "w-0"} flex overflow-hidden transition-all duration-200`}
           >
             <div className="flex">
-              {visibleSections.map((section) => (
-                <BlockSettingsToolbarIcon
-                  key={section.id}
-                  sectionId={section.id}
-                  icon={section.icon}
-                  tooltip={section.tooltip}
-                  title={section.title}
-                  isSelected={selectedSection === section.id}
-                  onClick={() =>
-                    setSelectedSection(
-                      selectedSection === section.id ? null : section.id,
-                    )
-                  }
-                />
-              ))}
+              {visibleSections.map((section) => {
+                // Use special TokensToolbarIcon for the tokens section
+                if (section.id === "tokens") {
+                  return (
+                    <TokensToolbarIcon
+                      key={section.id}
+                      isSelected={selectedSection === section.id}
+                      onClick={() =>
+                        setSelectedSection(
+                          selectedSection === section.id ? null : section.id,
+                        )
+                      }
+                    />
+                  );
+                }
+                
+                return (
+                  <BlockSettingsToolbarIcon
+                    key={section.id}
+                    sectionId={section.id}
+                    icon={section.icon}
+                    tooltip={section.tooltip}
+                    title={section.title}
+                    isSelected={selectedSection === section.id}
+                    onClick={() =>
+                      setSelectedSection(
+                        selectedSection === section.id ? null : section.id,
+                      )
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         </div>

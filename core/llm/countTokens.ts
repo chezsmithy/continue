@@ -172,7 +172,7 @@ function countToolsTokens(tools: Tool[], modelName: string): number {
   return numTokens + 12;
 }
 
-function countChatMessageTokens(
+export function countChatMessageTokens(
   modelName: string,
   chatMessage: ChatMessage,
 ): number {
@@ -327,19 +327,17 @@ function pruneRawPromptFromTop(
 }
 
 /*
-  Goal: reconcile chat messages with available context length
-  Guidelines:
-    - Always keep last user message, system message, and tools
-    - Never allow tool output without the corresponding tool call 
-    - Remove older messages first
+  Calculate detailed token statistics for a chat conversation
+  Returns all the components that make up total context usage
 */
-function compileChatMessages({
+function calculateTokenUsageStats({
   modelName,
   msgs,
   contextLength,
   maxTokens,
   supportsImages,
   tools,
+  allowNegative = false,
 }: {
   modelName: string;
   msgs: ChatMessage[];
@@ -347,7 +345,17 @@ function compileChatMessages({
   maxTokens: number;
   supportsImages: boolean;
   tools?: Tool[];
-}): ChatMessage[] {
+  allowNegative?: boolean;
+}): {
+  systemMsgTokens: number;
+  toolTokens: number;
+  lastMessagesTokens: number;
+  countingSafetyBuffer: number;
+  minOutputTokens: number;
+  inputTokensAvailable: number;
+  historyTokens: number;
+  totalUsedTokens: number;
+} {
   let msgsCopy: ChatMessage[] = msgs.map((m) => ({ ...m }));
 
   // If images not supported, convert MessagePart[] to string
@@ -366,7 +374,6 @@ function compileChatMessages({
 
   // Remove any empty messages or non-user/tool trailing messages
   msgsCopy = msgsCopy.filter((msg) => !chatMessageIsEmpty(msg));
-
   msgsCopy = addSpaceToAnyEmptyMessages(msgsCopy);
 
   while (msgsCopy.length > 1) {
@@ -378,7 +385,7 @@ function compileChatMessages({
 
   const lastUserOrToolMsg = msgsCopy.pop();
   if (!lastUserOrToolMsg || !isUserOrToolMsg(lastUserOrToolMsg)) {
-    throw new Error("Error parsing chat history: no user/tool message found"); // should never happen
+    throw new Error("Error parsing chat history: no user/tool message found");
   }
 
   let lastToolCallsMsg: ChatMessage | undefined = undefined;
@@ -422,19 +429,116 @@ function compileChatMessages({
   inputTokensAvailable -= systemMsgTokens;
   inputTokensAvailable -= lastMessagesTokens;
 
+  // Calculate history tokens (remaining messages)
+  let historyTokens = 0;
+  for (const message of msgsCopy) {
+    historyTokens += countChatMessageTokens(modelName, message);
+  }
+
+  const totalUsedTokens = systemMsgTokens + toolTokens + lastMessagesTokens + historyTokens + countingSafetyBuffer + minOutputTokens;
+
+  return {
+    systemMsgTokens,
+    toolTokens,
+    lastMessagesTokens,
+    countingSafetyBuffer,
+    minOutputTokens,
+    inputTokensAvailable,
+    historyTokens,
+    totalUsedTokens,
+  };
+}
+
+/*
+  Goal: reconcile chat messages with available context length
+  Guidelines:
+    - Always keep last user message, system message, and tools
+    - Never allow tool output without the corresponding tool call 
+    - Remove older messages first
+*/
+function compileChatMessages({
+  modelName,
+  msgs,
+  contextLength,
+  maxTokens,
+  supportsImages,
+  tools,
+}: {
+  modelName: string;
+  msgs: ChatMessage[];
+  contextLength: number;
+  maxTokens: number;
+  supportsImages: boolean;
+  tools?: Tool[];
+}): ChatMessage[] {
+  const allowNegative = false;
+  // Get detailed token usage stats
+  const stats = calculateTokenUsageStats({
+    modelName,
+    msgs,
+    contextLength,
+    maxTokens,
+    supportsImages,
+    tools,
+    allowNegative: allowNegative, // Keep original error-throwing behavior for message compilation
+  });
+
   // Make sure there's enough context for the non-excludable items
-  if (inputTokensAvailable < 0) {
+  if (stats.inputTokensAvailable < 0 && !allowNegative) {
     throw new Error(
       `Not enough context available to include the system message, last user message, and tools.
-      There must be at least ${minOutputTokens} tokens remaining for output.
+      There must be at least ${stats.minOutputTokens} tokens remaining for output.
       Request had the following token counts:
       - contextLength: ${contextLength}
-      - counting safety buffer: ${countingSafetyBuffer}
-      - tools: ~${toolTokens}
-      - system message: ~${systemMsgTokens}
-      - last user or tool + tool call message tokens: ~${lastMessagesTokens}
+      - counting safety buffer: ${stats.countingSafetyBuffer}
+      - tools: ~${stats.toolTokens}
+      - system message: ~${stats.systemMsgTokens}
+      - last user or tool + tool call message tokens: ~${stats.lastMessagesTokens}
       - max output tokens: ${maxTokens}`,
     );
+  }
+
+  // Now we need to rebuild the message processing logic for the actual compilation
+  let msgsCopy: ChatMessage[] = msgs.map((m) => ({ ...m }));
+
+  // If images not supported, convert MessagePart[] to string
+  if (!supportsImages) {
+    for (const msg of msgsCopy) {
+      if ("content" in msg && Array.isArray(msg.content)) {
+        const content = renderChatMessage(msg);
+        msg.content = content;
+      }
+    }
+  }
+
+  // Extract system message
+  const systemMsg = msgsCopy.find((msg) => msg.role === "system");
+  msgsCopy = msgsCopy.filter((msg) => msg.role !== "system");
+
+  // Remove any empty messages or non-user/tool trailing messages
+  msgsCopy = msgsCopy.filter((msg) => !chatMessageIsEmpty(msg));
+  msgsCopy = addSpaceToAnyEmptyMessages(msgsCopy);
+
+  while (msgsCopy.length > 1) {
+    if (isUserOrToolMsg(msgsCopy.at(-1))) {
+      break;
+    }
+    msgsCopy.pop();
+  }
+
+  const lastUserOrToolMsg = msgsCopy.pop();
+  if (!lastUserOrToolMsg || !isUserOrToolMsg(lastUserOrToolMsg)) {
+    throw new Error("Error parsing chat history: no user/tool message found");
+  }
+
+  let lastToolCallsMsg: ChatMessage | undefined = undefined;
+  if (lastUserOrToolMsg.role === "tool") {
+    lastToolCallsMsg = msgsCopy.pop();
+    if (!messageHasToolCallId(lastToolCallsMsg, lastUserOrToolMsg.toolCallId)) {
+      throw new Error(
+        `Error parsing chat history: no tool call found to match tool output for id "${lastUserOrToolMsg.toolCallId}"`,
+      );
+    }
   }
 
   // Now remove messages till we're under the limit
@@ -448,7 +552,7 @@ function compileChatMessages({
     };
   });
 
-  while (historyWithTokens.length > 0 && currentTotal > inputTokensAvailable) {
+  while (historyWithTokens.length > 0 && currentTotal > stats.inputTokensAvailable) {
     const message = historyWithTokens.shift()!;
     currentTotal -= message.tokens;
 
@@ -476,6 +580,7 @@ function compileChatMessages({
 }
 
 export {
+  calculateTokenUsageStats,
   compileChatMessages,
   countTokens,
   countTokensAsync,
@@ -483,5 +588,5 @@ export {
   pruneLinesFromTop,
   pruneRawPromptFromTop,
   pruneStringFromBottom,
-  pruneStringFromTop,
+  pruneStringFromTop
 };

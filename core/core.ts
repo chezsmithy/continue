@@ -574,6 +574,75 @@ export class Core {
       const rows = await DevDataSqliteDb.getTokensPerModel();
       return rows;
     });
+    on("stats/getHistoryTokenCount", async (msg) => {
+      const { messages, modelName } = msg.data;
+      
+      // Get current config to determine context length, tools, etc.
+      const { config } = await this.configHandler.loadConfig();
+      if (!config) {
+        throw new Error("Config not loaded");
+      }
+
+      const selectedModel = config.selectedModelByRole.chat;
+      if (!selectedModel) {
+        throw new Error("No chat model selected");
+      }
+
+      // Import the detailed token calculation function
+      const { calculateTokenUsageStats } = await import("./llm/countTokens");
+      
+      const stats = calculateTokenUsageStats({
+        modelName,
+        msgs: messages,
+        contextLength: selectedModel.contextLength || 4096,
+        maxTokens: selectedModel.completionOptions?.maxTokens || 1000,
+        supportsImages: false, // TODO: Get from model capabilities
+        tools: config.tools || [],
+        allowNegative: true, // Allow negative values for UI display
+      });
+      
+      // Debug logging
+      console.log('Backend Token Stats:', {
+        inputTokensAvailable: stats.inputTokensAvailable,
+        totalUsedTokens: stats.totalUsedTokens,
+        contextLength: selectedModel.contextLength || 4096,
+        historyTokens: stats.historyTokens,
+        systemMsgTokens: stats.systemMsgTokens,
+        toolTokens: stats.toolTokens,
+        allowNegative: true
+      });
+      
+      // Calculate user vs assistant tokens from the messages
+      let userTokens = 0;
+      let assistantTokens = 0;
+      
+      const { countChatMessageTokens } = await import("./llm/countTokens");
+      for (const message of messages) {
+        const messageTokens = countChatMessageTokens(modelName, message);
+        if (message.role === 'user') {
+          userTokens += messageTokens;
+        } else if (message.role === 'assistant') {
+          assistantTokens += messageTokens;
+        }
+      }
+      
+      return {
+        // Basic token counts
+        totalTokens: stats.historyTokens + stats.lastMessagesTokens,
+        userTokens,
+        assistantTokens,
+        // Detailed breakdown
+        systemMsgTokens: stats.systemMsgTokens,
+        toolTokens: stats.toolTokens,
+        lastMessagesTokens: stats.lastMessagesTokens,
+        countingSafetyBuffer: stats.countingSafetyBuffer,
+        minOutputTokens: stats.minOutputTokens,
+        inputTokensAvailable: stats.inputTokensAvailable,
+        historyTokens: stats.historyTokens,
+        totalUsedTokens: stats.totalUsedTokens,
+        contextLength: selectedModel.contextLength || 4096,
+      };
+    });
 
     on("index/forceReIndex", async ({ data }) => {
       const { config } = await this.configHandler.loadConfig();

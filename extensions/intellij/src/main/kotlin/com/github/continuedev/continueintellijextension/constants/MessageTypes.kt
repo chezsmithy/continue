@@ -108,9 +108,9 @@ class MessageTypes {
             "llm/streamChat",
             "llm/listModels",
             "streamDiffLines",
-            "chatDescriber/describe",
-            "stats/getTokensPerDay",
-            "stats/getTokensPerModel",
+            "chatDescriber/describe","stats/getTokensPerDay",
+  "stats/getTokensPerModel",
+  "stats/getHistoryTokenCount",
             // Codebase
             "index/setPaused",
             "index/forceReIndex",

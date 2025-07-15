@@ -184,6 +184,23 @@ export type ToCoreFromIdeOrWebviewProtocol = {
     undefined,
     { model: string; promptTokens: number; generatedTokens: number }[],
   ];
+  "stats/getHistoryTokenCount": [
+    { messages: ChatMessage[]; modelName: string },
+    { 
+      totalTokens: number; 
+      userTokens: number; 
+      assistantTokens: number;
+      systemMsgTokens: number;
+      toolTokens: number;
+      lastMessagesTokens: number;
+      countingSafetyBuffer: number;
+      minOutputTokens: number;
+      inputTokensAvailable: number;
+      historyTokens: number;
+      totalUsedTokens: number;
+      contextLength: number;
+    },
+  ];
   "tts/kill": [undefined, void];
 
   // Codebase indexing
