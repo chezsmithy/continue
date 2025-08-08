@@ -1,93 +1,82 @@
-import { Editor, ReactRenderer } from "@tiptap/react";
+import { Editor } from "@tiptap/react";
 import {
   ContextProviderDescription,
   ContextSubmenuItem,
   ContextSubmenuItemWithProvider,
 } from "core";
 import { MutableRefObject } from "react";
-import tippy from "tippy.js";
 import { IIdeMessenger } from "../../../../context/IdeMessenger";
 import { AppDispatch } from "../../../../redux/store";
-import AtMentionDropdown from "../../AtMentionDropdown";
 import { ComboBoxItem, ComboBoxItemType, ComboBoxSubAction } from "../../types";
-import { TIPPY_DIV_ID } from "../TipTapEditor";
 import { SlashCommand } from "../extensions";
 
+// Interface for the lump context integration
+export interface LumpContextState {
+  isOpen: boolean;
+  query: string;
+  inSubmenu?: string;
+}
+
+// Updated function to return lump context configuration
 function getSuggestion(
   items: (props: { query: string }) => Promise<ComboBoxItem[]>,
-  enterSubmenu: (editor: Editor, providerId: string) => void = (editor) => {},
+  enterSubmenu: (editor: Editor, providerId: string) => void = () => {},
   onClose: () => void = () => {},
   onOpen: () => void = () => {},
+  openLumpContext?: (query: string) => void,
 ) {
+  let currentRef: any;
+
   return {
     items,
     allowSpaces: true,
     render: () => {
-      let component: any;
-      let popup: any;
-
       const onExit = () => {
-        popup?.[0]?.destroy();
-        component?.destroy();
         onClose();
       };
 
       return {
         onStart: (props: any) => {
-          component = new ReactRenderer(AtMentionDropdown, {
-            props: { ...props, enterSubmenu, onClose: onExit },
-            editor: props.editor,
-          });
-
           if (!props.clientRect) {
             console.log("no client rect");
             return;
           }
 
-          const container = document.getElementById(TIPPY_DIV_ID);
+          // Open the lump context section instead of drawer
+          openLumpContext?.("");
 
-          if (!container) {
-            console.log("no container");
-            return;
-          }
-
-          popup = tippy("body", {
-            getReferenceClientRect: props.clientRect,
-            appendTo: () => container,
-            content: component.element,
-            showOnCreate: true,
-            interactive: true,
-            trigger: "manual",
-            placement: "bottom-start",
-            maxWidth: `${window.innerWidth - 24}px`,
-          });
+          // Store reference for key handling
+          currentRef = {
+            enterSubmenu,
+            onClose: onExit,
+          };
 
           onOpen();
         },
 
         onUpdate(props: any) {
-          component.updateProps({ ...props, enterSubmenu });
-
-          if (!props.clientRect) {
-            return;
-          }
-
-          popup[0].setProps({
-            getReferenceClientRect: props.clientRect,
-          });
+          // Extract the current query from the editor using the range
+          const { range, query: extractedQuery } = props;
+          const query = extractedQuery || "";
+          
+          // Update the lump context with the current query
+          openLumpContext?.(query);
         },
 
         onKeyDown(props: any) {
           if (props.event.key === "Escape") {
-            popup[0].hide();
-
+            onExit();
             return true;
           }
 
-          return component.ref?.onKeyDown(props);
+          // Let other keys pass through
+          return false;
         },
 
         onExit,
+
+        // Expose the current reference for external key handling
+        getCurrentRef: () => currentRef,
       };
     },
   };
@@ -125,6 +114,7 @@ export function getContextProviderDropdownOptions(
   onOpen: () => void,
   inSubmenu: MutableRefObject<string | undefined>,
   ideMessenger: IIdeMessenger,
+  openLumpContext?: (query: string) => void,
 ) {
   const items = async ({ query }: { query: string }) => {
     if (inSubmenu.current) {
@@ -190,7 +180,7 @@ export function getContextProviderDropdownOptions(
     });
   };
 
-  return getSuggestion(items, enterSubmenu, onClose, onOpen);
+  return getSuggestion(items, enterSubmenu, onClose, onOpen, openLumpContext);
 }
 
 export function getSlashCommandDropdownOptions(
@@ -198,8 +188,9 @@ export function getSlashCommandDropdownOptions(
   onClose: () => void,
   onOpen: () => void,
   ideMessenger: IIdeMessenger,
-  dispatch: AppDispatch,
-  inputId: string,
+  _dispatch: AppDispatch,
+  _inputId: string,
+  openLumpContext?: (query: string) => void,
 ) {
   const items = async ({ query }: { query: string }) => {
     const options = [...availableSlashCommandsRef.current];
@@ -243,5 +234,5 @@ export function getSlashCommandDropdownOptions(
 
     return commandItems;
   };
-  return getSuggestion(items, undefined, onClose, onOpen);
+  return getSuggestion(items, undefined, onClose, onOpen, openLumpContext);
 }

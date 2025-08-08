@@ -420,6 +420,8 @@ export class Core {
     // Context providers
     on("context/addDocs", async (msg) => {
       void this.docsService.indexAndAdd(msg.data);
+      // Reload config to update context providers in UI
+      await this.configHandler.reloadConfig("Docs added (context/addDocs message)");
     });
 
     on("context/removeDocs", async (msg) => {
