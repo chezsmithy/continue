@@ -25,6 +25,8 @@ interface MainEditorContextType {
   setInputId: (id: string) => void;
   /** Reference to the execute content function */
   onEnterRef: React.MutableRefObject<(modifiers: InputModifiers) => void>;
+  /** Function to reset editor text back to just @ (for lump context) */
+  resetEditorAfterAt?: (editor: Editor) => void;
 }
 
 const initialState: MainEditorContextType = {
@@ -33,6 +35,7 @@ const initialState: MainEditorContextType = {
   inputId: null,
   setInputId: () => {},
   onEnterRef: { current: () => {} },
+  resetEditorAfterAt: undefined,
 };
 
 const MainEditorContext = createContext<MainEditorContextType>(initialState);

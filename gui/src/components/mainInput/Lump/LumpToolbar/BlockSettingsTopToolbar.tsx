@@ -1,4 +1,5 @@
 import {
+  AtSymbolIcon,
   ChatBubbleLeftIcon,
   ChevronLeftIcon,
   CubeIcon,
@@ -6,7 +7,7 @@ import {
   ExclamationTriangleIcon,
   PencilIcon,
   Squares2X2Icon,
-  WrenchScrewdriverIcon,
+  WrenchScrewdriverIcon
 } from "@heroicons/react/24/outline";
 import { ReactNode, useContext, useEffect, useState } from "react";
 import { vscBadgeForeground } from "../../..";
@@ -45,6 +46,7 @@ interface Section {
 
 const sections: Section[] = [
   { id: "models", title: "Models", tooltip: "Models", icon: CubeIcon },
+  { id: "context", title: "Context", tooltip: "Add context to your conversation", icon: AtSymbolIcon },
   { id: "rules", title: "Rules", tooltip: "Rules", icon: PencilIcon },
   {
     id: "prompts",

@@ -69,8 +69,10 @@ export function createEditorConfig(options: {
   props: TipTapEditorProps;
   ideMessenger: IIdeMessenger;
   dispatch: AppDispatch;
+  openLumpContext?: (query: string) => void;
+  contextSectionActiveRef?: React.MutableRefObject<boolean>;
 }) {
-  const { props, ideMessenger, dispatch } = options;
+  const { props, ideMessenger, dispatch, openLumpContext, contextSectionActiveRef } = options;
 
   const posthog = usePostHog();
 
@@ -164,7 +166,7 @@ export function createEditorConfig(options: {
                         void handleImageFile(ideMessenger, file).then(
                           (resp) => {
                             if (!resp) return;
-                            const [img, dataUrl] = resp;
+                            const [, dataUrl] = resp;
                             const { schema } = view.state;
                             const node = schema.nodes.image.create({
                               src: dataUrl,
@@ -196,6 +198,13 @@ export function createEditorConfig(options: {
         addKeyboardShortcuts() {
           return {
             Enter: () => {
+              // Forward to context section if active
+              if (contextSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+                window.dispatchEvent(new CustomEvent('lump-context-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
               if (inDropdownRef.current) {
                 return false;
               }
@@ -242,6 +251,13 @@ export function createEditorConfig(options: {
               ]),
 
             ArrowUp: () => {
+              // Forward to context section if active
+              if (contextSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'ArrowUp' });
+                window.dispatchEvent(new CustomEvent('lump-context-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
               if (this.editor.state.selection.anchor > 1) {
                 return false;
               }
@@ -260,6 +276,13 @@ export function createEditorConfig(options: {
               return false;
             },
             Escape: () => {
+              // Forward to context section if active (to close it)
+              if (contextSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+                window.dispatchEvent(new CustomEvent('lump-context-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
               if (inDropdownRef.current) {
                 return false;
               }
@@ -281,6 +304,13 @@ export function createEditorConfig(options: {
               return true;
             },
             ArrowDown: () => {
+              // Forward to context section if active
+              if (contextSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'ArrowDown' });
+                window.dispatchEvent(new CustomEvent('lump-context-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
               if (
                 this.editor.state.selection.anchor <
                 this.editor.state.doc.content.size - 1
@@ -294,6 +324,15 @@ export function createEditorConfig(options: {
                   this.editor.commands.blur();
                   this.editor.commands.focus("end");
                 }, 0);
+                return true;
+              }
+              return false;
+            },
+            Tab: () => {
+              // Forward to context section if active
+              if (contextSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'Tab' });
+                window.dispatchEvent(new CustomEvent('lump-context-keyboard', { detail: { keyEvent } }));
                 return true;
               }
               return false;
@@ -315,6 +354,7 @@ export function createEditorConfig(options: {
           onOpen,
           inSubmenuRef,
           ideMessenger,
+          openLumpContext,
         ),
       }),
       SlashCommand.configure({
@@ -325,6 +365,7 @@ export function createEditorConfig(options: {
           ideMessenger,
           dispatch,
           props.inputId,
+          openLumpContext,
         ),
       }),
       PromptBlock,
@@ -368,5 +409,30 @@ export function createEditorConfig(options: {
     [props.onEnter, editor, props.isMainInput, codeToEdit, isInEdit],
   );
 
-  return { editor, onEnterRef };
+  // Simple function to reset editor text after @ (for lump context system)
+  const resetEditorAfterAt = (editor: Editor) => {
+    const contents = editor.getText();
+    const indexOfAt = contents.lastIndexOf("@");
+    if (indexOfAt === -1) {
+      return;
+    }
+
+    // Find the position of the last @ character
+    let startPos = editor.state.selection.anchor;
+    while (
+      startPos > 0 &&
+      editor.state.doc.textBetween(startPos, startPos + 1) !== "@"
+    ) {
+      startPos--;
+    }
+    startPos++; // Position after @
+
+    // Delete everything after the @, leaving just "@"
+    editor.commands.deleteRange({
+      from: startPos,
+      to: editor.state.selection.anchor,
+    });
+  };
+
+  return { editor, onEnterRef, enterSubmenu, resetEditorAfterAt };
 }

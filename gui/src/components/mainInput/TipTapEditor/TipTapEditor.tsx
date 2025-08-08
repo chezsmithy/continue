@@ -8,6 +8,7 @@ import useUpdatingRef from "../../../hooks/useUpdatingRef";
 import { useAppDispatch, useAppSelector } from "../../../redux/hooks";
 import { selectSelectedChatModel } from "../../../redux/slices/configSlice";
 import InputToolbar, { ToolbarOptions } from "../InputToolbar";
+import { useLump } from "../Lump/LumpContext";
 import { ComboBoxItem } from "../types";
 import { DragOverlay } from "./components/DragOverlay";
 import { InputBoxDiv } from "./components/StyledComponents";
@@ -36,11 +37,12 @@ export interface TipTapEditorProps {
   inputId: string;
 }
 
-export const TIPPY_DIV_ID = "tippy-js-div";
-
 export function TipTapEditor(props: TipTapEditorProps) {
   const dispatch = useAppDispatch();
   const mainEditorContext = useMainEditor();
+  const inputBoxRef = useRef<HTMLDivElement>(null);
+  const { setSelectedSection, selectedSection } = useLump();
+  const contextSectionActiveRef = useRef(false);
 
   const ideMessenger = useContext(IdeMessengerContext);
   const isOSREnabled = useIsOSREnabled();
@@ -50,10 +52,40 @@ export function TipTapEditor(props: TipTapEditorProps) {
   const historyLength = useAppSelector((store) => store.session.history.length);
   const isInEdit = useAppSelector((store) => store.session.isInEdit);
 
-  const { editor, onEnterRef } = createEditorConfig({
+  const openLumpContext = useCallback((query: string) => {
+    // Open the context section in the lump
+    setSelectedSection("context");
+    contextSectionActiveRef.current = true;
+    // We'll pass the query to the context section via a custom event or context
+    window.dispatchEvent(new CustomEvent('lump-context-query', { detail: { query } }));
+  }, [setSelectedSection]);
+
+  // Track when context section closes
+  useEffect(() => {
+    if (selectedSection !== "context") {
+      contextSectionActiveRef.current = false;
+    }
+  }, [selectedSection]);
+
+  // Listen for context section close events
+  useEffect(() => {
+    const handleContextClose = () => {
+      contextSectionActiveRef.current = false;
+      setSelectedSection(null);
+    };
+
+    window.addEventListener('lump-context-close', handleContextClose);
+    return () => {
+      window.removeEventListener('lump-context-close', handleContextClose);
+    };
+  }, [setSelectedSection]);
+
+  const { editor, onEnterRef, enterSubmenu, resetEditorAfterAt } = createEditorConfig({
     props,
     ideMessenger,
     dispatch,
+    openLumpContext,
+    contextSectionActiveRef,
   });
 
   // Register the main editor with the provider
@@ -62,8 +94,12 @@ export function TipTapEditor(props: TipTapEditorProps) {
       mainEditorContext.setMainEditor(editor);
       mainEditorContext.setInputId(props.inputId);
       mainEditorContext.onEnterRef.current = onEnterRef.current;
+      // Also expose the resetEditorAfterAt function for lump context
+      if (resetEditorAfterAt) {
+        mainEditorContext.resetEditorAfterAt = resetEditorAfterAt;
+      }
     }
-  }, [editor, props.isMainInput, props.inputId, mainEditorContext, onEnterRef]);
+  }, [editor, props.isMainInput, props.inputId, mainEditorContext, onEnterRef, enterSubmenu]);
 
   const [shouldHideToolbar, setShouldHideToolbar] = useState(true);
 
@@ -175,6 +211,7 @@ export function TipTapEditor(props: TipTapEditorProps) {
 
   return (
     <InputBoxDiv
+      ref={inputBoxRef}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
@@ -277,7 +314,6 @@ export function TipTapEditor(props: TipTapEditorProps) {
         ) && (
           <DragOverlay show={showDragOverMsg} setShow={setShowDragOverMsg} />
         )}
-      <div id={TIPPY_DIV_ID} className="fixed z-50" />
     </InputBoxDiv>
   );
 }

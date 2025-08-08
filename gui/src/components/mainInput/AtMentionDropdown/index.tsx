@@ -115,15 +115,17 @@ const ItemDiv = styled.div`
 `;
 
 const QueryInput = styled.textarea`
-  background-color: #fff1;
-  border: 1px solid ${lightGray};
-  border-radius: ${defaultBorderRadius};
-  overflow: hidden;
-
-  padding: 0.2rem 0.4rem;
-  width: 240px;
-
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  display: block;
+  margin: 0;
+  padding: 2px 4px;
+  text-align: left;
+  width: 100%;
   color: ${vscForeground};
+  font-size: ${fontSize(-2)};
+  min-height: 2.5rem;
 
   &:focus {
     outline: none;
@@ -354,15 +356,7 @@ const AtMentionDropdown = forwardRef((props: AtMentionDropdownProps, ref) => {
     }
 
     if (item.contextProvider?.type === "query") {
-      // update editor to complete context provider title
-      const { tr } = props.editor.view.state;
-      const text = tr.doc.textBetween(0, tr.selection.from);
-      const partialText = text.slice(text.lastIndexOf("@") + 1);
-      const remainingText = item.title.slice(partialText.length);
-      props.editor.view.dispatch(
-        tr.insertText(remainingText, tr.selection.from),
-      );
-
+      // Don't insert anything into the editor yet - just show the query input
       setSubMenuTitle(item.description);
       setQuerySubmenuItem(item);
       return;
@@ -459,18 +453,32 @@ const AtMentionDropdown = forwardRef((props: AtMentionDropdownProps, ref) => {
   return (
     <ItemsDiv>
       {querySubmenuItem ? (
-        <span className="flex items-center gap-x-1">
-          <QueryInput
-            wrap="off"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-            rows={1}
-            ref={queryInputRef}
-            placeholder={querySubmenuItem.description}
-            onKeyDown={(e) => {
-              if (!queryInputRef.current) {
-                return;
+        <QueryInput
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          rows={2}
+          ref={queryInputRef}
+          placeholder={querySubmenuItem.description}
+          onKeyDown={(e) => {
+            if (!queryInputRef.current) {
+              return;
+            }
+            if (e.key === "Enter") {
+              if (e.shiftKey) {
+                queryInputRef.current.innerText += "\n";
+              } else {
+                // Call props.command to insert the search query
+                props.command({
+                  ...querySubmenuItem,
+                  itemType: querySubmenuItem.type,
+                  query: queryInputRef.current.value,
+                  label: `${querySubmenuItem.label}: ${queryInputRef.current.value}`,
+                });
+                
+                // Reset the query state
+                setQuerySubmenuItem(undefined);
+                setSubMenuTitle(undefined);
               }
               if (e.key === "Enter") {
                 if (e.shiftKey) {
