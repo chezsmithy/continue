@@ -119,3 +119,11 @@ body {
 .scroll-container:is(:hover, :focus)::-webkit-scrollbar {
   display: block; /* Show scrollbar only on hover or focus */
 }
+
+/* AtMentionDropdown specific styles */
+.dropdown-description {
+  color: #999998;
+  float: right;
+  text-align: right;
+  min-width: 30px;
+}

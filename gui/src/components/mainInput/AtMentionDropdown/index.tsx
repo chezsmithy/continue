@@ -18,11 +18,10 @@ import { useDispatch } from "react-redux";
 import styled from "styled-components";
 import {
   defaultBorderRadius,
-  lightGray,
   vscForeground,
   vscListActiveBackground,
   vscListActiveForeground,
-  vscQuickInputBackground,
+  vscQuickInputBackground
 } from "../..";
 import { IdeMessengerContext } from "../../../context/IdeMessenger";
 import { useAppSelector } from "../../../redux/hooks";
@@ -453,43 +452,33 @@ const AtMentionDropdown = forwardRef((props: AtMentionDropdownProps, ref) => {
   return (
     <ItemsDiv>
       {querySubmenuItem ? (
-        <QueryInput
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-          rows={2}
-          ref={queryInputRef}
-          placeholder={querySubmenuItem.description}
-          onKeyDown={(e) => {
-            if (!queryInputRef.current) {
-              return;
-            }
-            if (e.key === "Enter") {
-              if (e.shiftKey) {
-                queryInputRef.current.innerText += "\n";
-              } else {
-                // Call props.command to insert the search query
-                props.command({
-                  ...querySubmenuItem,
-                  itemType: querySubmenuItem.type,
-                  query: queryInputRef.current.value,
-                  label: `${querySubmenuItem.label}: ${queryInputRef.current.value}`,
-                });
-                
-                // Reset the query state
-                setQuerySubmenuItem(undefined);
-                setSubMenuTitle(undefined);
+        <span className="flex flex-col gap-2">
+          <QueryInput
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            rows={2}
+            ref={queryInputRef}
+            placeholder={querySubmenuItem.description}
+            onKeyDown={(e) => {
+              if (!queryInputRef.current) {
+                return;
               }
               if (e.key === "Enter") {
                 if (e.shiftKey) {
                   queryInputRef.current.innerText += "\n";
                 } else {
+                  // Call props.command to insert the search query
                   props.command({
                     ...querySubmenuItem,
                     itemType: querySubmenuItem.type,
                     query: queryInputRef.current.value,
                     label: `${querySubmenuItem.label}: ${queryInputRef.current.value}`,
                   });
+                  
+                  // Reset the query state
+                  setQuerySubmenuItem(undefined);
+                  setSubMenuTitle(undefined);
                 }
               } else if (e.key === "Escape") {
                 setQuerySubmenuItem(undefined);
@@ -526,13 +515,7 @@ const AtMentionDropdown = forwardRef((props: AtMentionDropdownProps, ref) => {
                   {"  "}
                 </div>
                 <span
-                  style={{
-                    color: lightGray,
-                    float: "right",
-                    textAlign: "right",
-                    minWidth: "30px",
-                  }}
-                  className="ml-2 flex items-center overflow-hidden overflow-ellipsis whitespace-nowrap"
+                  className="dropdown-description ml-2 flex items-center overflow-hidden overflow-ellipsis whitespace-nowrap"
                 >
                   {loadingSubmenuItem.description}
                 </span>
@@ -572,19 +555,15 @@ const AtMentionDropdown = forwardRef((props: AtMentionDropdownProps, ref) => {
                       {"  "}
                     </div>
                     <span
+                      className="dropdown-description ml-2 flex items-center overflow-hidden overflow-ellipsis whitespace-nowrap"
                       style={{
-                        color: lightGray,
-                        float: "right",
-                        textAlign: "right",
                         opacity:
                           subMenuTitle || item.type !== "contextProvider"
                             ? 1
                             : isSelected
                               ? 1
                               : 0,
-                        minWidth: "30px",
                       }}
-                      className="ml-2 flex items-center overflow-hidden overflow-ellipsis whitespace-nowrap"
                     >
                       {item.description}
                       {item.type === "contextProvider" &&
