@@ -127,18 +127,6 @@ function InputToolbar(props: InputToolbarProps) {
                   </HoverItem>
                 </>
               ))}
-            {props.toolbarOptions?.hideAddContext || (
-              <HoverItem onClick={props.onAddContextItem}>
-                <AtSymbolIcon
-                  data-tooltip-id="add-context-item-tooltip"
-                  className="h-3 w-3 hover:brightness-125"
-                />
-
-                <ToolTip id="add-context-item-tooltip" place="top">
-                  Attach Context
-                </ToolTip>
-              </HoverItem>
-            )}
             {defaultModel?.underlyingProviderName === "anthropic" && (
               <HoverItem
                 onClick={() =>

@@ -14,7 +14,7 @@ export function Lump() {
         <LumpToolbar />
 
         <div
-          className={`no-scrollbar overflow-y-auto pr-0.5 transition-all duration-300 ease-in-out ${
+          className={`no-scrollbar overflow-y-auto pr-0.5 transition-all duration-150 ease-in-out ${
             selectedSection
               ? "my-1 max-h-[200px] opacity-100"
               : "my-0 max-h-0 opacity-0"

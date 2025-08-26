@@ -5,6 +5,7 @@ import MCPSection from "./mcp/MCPSection";
 import { ModelsSection } from "./ModelsSection";
 import { PromptsSection } from "./PromptsSection";
 import { RulesSection } from "./RulesSection";
+import { SlashCommandsSection } from "./SlashCommandsSection";
 import { ToolPoliciesSection } from "./tool-policies/ToolPoliciesSection";
 
 /**
@@ -14,21 +15,23 @@ export function SelectedSection() {
   const { displayedSection } = useLump();
 
   switch (displayedSection) {
-    case "models":
-      return <ModelsSection />;
-    case "rules":
-      return <RulesSection />;
-    case "prompts":
-      return <PromptsSection />;
-    case "context":
-      return <ContextSection />;
-    case "tools":
-      return <ToolPoliciesSection />;
-    case "mcp":
-      return <MCPSection />;
-    case "error":
-      return <ErrorSection />;
-    default:
-      return null;
+  case "models":
+    return <ModelsSection />;
+  case "rules":
+    return <RulesSection />;
+  case "prompts":
+    return <PromptsSection />;
+  case "context":
+    return <ContextSection />;
+  case "slashCommands":
+    return <SlashCommandsSection />;
+  case "tools":
+    return <ToolPoliciesSection />;
+  case "mcp":
+    return <MCPSection />;
+  case "error":
+    return <ErrorSection />;
+  default:
+    return null;
   }
 }

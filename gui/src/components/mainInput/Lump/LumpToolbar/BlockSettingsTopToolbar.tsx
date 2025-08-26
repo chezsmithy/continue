@@ -6,11 +6,11 @@ import {
   EllipsisHorizontalIcon,
   ExclamationTriangleIcon,
   PencilIcon,
+  SlashIcon,
   Squares2X2Icon,
   WrenchScrewdriverIcon
 } from "@heroicons/react/24/outline";
 import { ReactNode, useContext, useEffect, useState } from "react";
-import { vscBadgeForeground } from "../../..";
 import { IdeMessengerContext } from "../../../../context/IdeMessenger";
 import { useAppSelector } from "../../../../redux/hooks";
 import FreeTrialButton from "../../../FreeTrialButton";
@@ -26,6 +26,7 @@ import { usesFreeTrialApiKey } from "core/config/usesFreeTrialApiKey";
 import type { FreeTrialStatus } from "core/control-plane/client";
 import { getLocalStorage } from "../../../../util/localStorage";
 import { AssistantAndOrgListbox } from "../../../AssistantAndOrgListbox";
+import "./BlockSettingsTopToolbar.css";
 
 interface BlockSettingsToolbarIcon {
   title: string;
@@ -46,7 +47,8 @@ interface Section {
 
 const sections: Section[] = [
   { id: "models", title: "Models", tooltip: "Models", icon: CubeIcon },
-  { id: "context", title: "Context", tooltip: "Add context to your conversation", icon: AtSymbolIcon },
+  { id: "context", title: "Context", tooltip: "Context", icon: AtSymbolIcon },
+  { id: "slashCommands", title: "Commands", tooltip: "Slash Commands", icon: SlashIcon },
   { id: "rules", title: "Rules", tooltip: "Rules", icon: PencilIcon },
   {
     id: "prompts",
@@ -110,22 +112,18 @@ function BlockSettingsToolbarIcon(
           <props.icon
             className={`h-[13px] w-[13px] flex-shrink-0 hover:brightness-125 ${
               isErrorSection ? "text-error" : ""
+            } ${
+              props.isSelected ? "block-settings-toolbar-icon-selected" : ""
             }`}
-            style={{
-              color: props.isSelected ? vscBadgeForeground : undefined,
-            }}
             aria-hidden="true"
           />
           <div
-            style={{ fontSize }}
             className={`overflow-hidden transition-all duration-200 ${
               props.isSelected ? "ml-1 w-auto opacity-100" : "w-0 opacity-0"
             }`}
+            style={{ fontSize }}
           >
-            <span
-              className="whitespace-nowrap"
-              style={{ color: vscBadgeForeground }}
-            >
+            <span className="whitespace-nowrap block-settings-toolbar-title">
               {props.title}
             </span>
           </div>

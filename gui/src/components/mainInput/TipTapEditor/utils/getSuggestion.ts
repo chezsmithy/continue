@@ -17,13 +17,15 @@ export interface LumpContextState {
   inSubmenu?: string;
 }
 
-// Updated function to return lump context configuration
+// Function to create suggestion configuration for drawer-based suggestions
 function getSuggestion(
   items: (props: { query: string }) => Promise<ComboBoxItem[]>,
   enterSubmenu: (editor: Editor, providerId: string) => void = () => {},
   onClose: () => void = () => {},
   onOpen: () => void = () => {},
+  useDrawer: boolean = false,
   openLumpContext?: (query: string) => void,
+  openLumpSlashCommands?: (query: string) => void,
 ) {
   let currentRef: any;
 
@@ -42,25 +44,52 @@ function getSuggestion(
             return;
           }
 
-          // Open the lump context section instead of drawer
-          openLumpContext?.("");
+          // Use drawer for normal suggestions, lump context for @ mentions
+          if (useDrawer) {
+            // This will be handled by the SuggestionDrawer system
+            // Store reference for key handling
+            currentRef = {
+              enterSubmenu,
+              onClose: onExit,
+            };
 
-          // Store reference for key handling
-          currentRef = {
-            enterSubmenu,
-            onClose: onExit,
-          };
+            onOpen();
+          } else {
+            // Open the lump context or slash commands section
+            if (openLumpContext) {
+              // This is for @ mentions - open context section
+              openLumpContext("");
+            } else if (openLumpSlashCommands) {
+              // This is for / commands - open slash commands section  
+              openLumpSlashCommands("");
+            }
 
-          onOpen();
+            // Store reference for key handling
+            currentRef = {
+              enterSubmenu,
+              onClose: onExit,
+            };
+
+            onOpen();
+          }
         },
 
         onUpdate(props: any) {
-          // Extract the current query from the editor using the range
-          const { range, query: extractedQuery } = props;
-          const query = extractedQuery || "";
-          
-          // Update the lump context with the current query
-          openLumpContext?.(query);
+          if (useDrawer) {
+            // For drawer-based suggestions, this is handled by the drawer component
+            return;
+          } else {
+            // Extract the current query from the editor using the range
+            const { range, query: extractedQuery } = props;
+            const query = extractedQuery || "";
+            
+            // Update the appropriate lump section with the current query
+            if (openLumpContext) {
+              openLumpContext(query);
+            } else if (openLumpSlashCommands) {
+              openLumpSlashCommands(query);
+            }
+          }
         },
 
         onKeyDown(props: any) {
@@ -180,7 +209,7 @@ export function getContextProviderDropdownOptions(
     });
   };
 
-  return getSuggestion(items, enterSubmenu, onClose, onOpen, openLumpContext);
+  return getSuggestion(items, enterSubmenu, onClose, onOpen, false, openLumpContext, undefined);
 }
 
 export function getSlashCommandDropdownOptions(
@@ -190,7 +219,7 @@ export function getSlashCommandDropdownOptions(
   ideMessenger: IIdeMessenger,
   _dispatch: AppDispatch,
   _inputId: string,
-  openLumpContext?: (query: string) => void,
+  openLumpSlashCommands?: (query: string) => void,
 ) {
   const items = async ({ query }: { query: string }) => {
     const options = [...availableSlashCommandsRef.current];
@@ -200,7 +229,7 @@ export function getSlashCommandDropdownOptions(
         ? options.filter((slashCommand) => {
             const sc = slashCommand.title.toLowerCase();
             const iv = query.toLowerCase();
-            return sc.startsWith(iv);
+            return sc.startsWith(iv) || slashCommand.description?.toLowerCase().includes(iv);
           })
         : options;
 
@@ -224,7 +253,7 @@ export function getSlashCommandDropdownOptions(
             "openUrl",
             "https://hub.continue.dev/explore/prompts",
           ),
-        description: "",
+        description: "Browse community prompts on Continue Hub",
         name: "",
         id: "",
         label: "",
@@ -234,5 +263,6 @@ export function getSlashCommandDropdownOptions(
 
     return commandItems;
   };
-  return getSuggestion(items, undefined, onClose, onOpen, openLumpContext);
+  // Use lump section for slash commands, not drawer
+  return getSuggestion(items, undefined, onClose, onOpen, false, undefined, openLumpSlashCommands);
 }

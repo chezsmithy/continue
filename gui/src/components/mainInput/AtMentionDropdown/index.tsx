@@ -89,7 +89,7 @@ const ItemsDiv = styled.div`
   overflow-y: auto;
   max-height: 330px;
   padding: 0.2rem;
-  position: relative; // absolute to test tippy.js bug
+  position: relative;
 
   background-color: ${vscQuickInputBackground};
   /* backdrop-filter: blur(12px); */

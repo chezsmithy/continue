@@ -43,6 +43,7 @@ export function TipTapEditor(props: TipTapEditorProps) {
   const inputBoxRef = useRef<HTMLDivElement>(null);
   const { setSelectedSection, selectedSection } = useLump();
   const contextSectionActiveRef = useRef(false);
+  const slashCommandsSectionActiveRef = useRef(false);
 
   const ideMessenger = useContext(IdeMessengerContext);
   const isOSREnabled = useIsOSREnabled();
@@ -60,10 +61,21 @@ export function TipTapEditor(props: TipTapEditorProps) {
     window.dispatchEvent(new CustomEvent('lump-context-query', { detail: { query } }));
   }, [setSelectedSection]);
 
+  const openLumpSlashCommands = useCallback((query: string) => {
+    // Open the slash commands section in the lump
+    setSelectedSection("slashCommands");
+    slashCommandsSectionActiveRef.current = true;
+    // We'll pass the query to the slash commands section via a custom event
+    window.dispatchEvent(new CustomEvent('lump-slash-commands-query', { detail: { query } }));
+  }, [setSelectedSection]);
+
   // Track when context section closes
   useEffect(() => {
     if (selectedSection !== "context") {
       contextSectionActiveRef.current = false;
+    }
+    if (selectedSection !== "slashCommands") {
+      slashCommandsSectionActiveRef.current = false;
     }
   }, [selectedSection]);
 
@@ -74,18 +86,27 @@ export function TipTapEditor(props: TipTapEditorProps) {
       setSelectedSection(null);
     };
 
+    const handleSlashCommandsClose = () => {
+      slashCommandsSectionActiveRef.current = false;
+      setSelectedSection(null);
+    };
+
     window.addEventListener('lump-context-close', handleContextClose);
+    window.addEventListener('lump-slash-commands-close', handleSlashCommandsClose);
     return () => {
       window.removeEventListener('lump-context-close', handleContextClose);
+      window.removeEventListener('lump-slash-commands-close', handleSlashCommandsClose);
     };
   }, [setSelectedSection]);
 
-  const { editor, onEnterRef, enterSubmenu, resetEditorAfterAt } = createEditorConfig({
+  const { editor, onEnterRef, enterSubmenu, resetEditorAfterAt, resetEditorAfterSlash } = createEditorConfig({
     props,
     ideMessenger,
     dispatch,
     openLumpContext,
     contextSectionActiveRef,
+    openLumpSlashCommands,
+    slashCommandsSectionActiveRef,
   });
 
   // Register the main editor with the provider
@@ -94,9 +115,12 @@ export function TipTapEditor(props: TipTapEditorProps) {
       mainEditorContext.setMainEditor(editor);
       mainEditorContext.setInputId(props.inputId);
       mainEditorContext.onEnterRef.current = onEnterRef.current;
-      // Also expose the resetEditorAfterAt function for lump context
+      // Also expose the reset functions for lump context and slash commands
       if (resetEditorAfterAt) {
         mainEditorContext.resetEditorAfterAt = resetEditorAfterAt;
+      }
+      if (resetEditorAfterSlash) {
+        mainEditorContext.resetEditorAfterSlash = resetEditorAfterSlash;
       }
     }
   }, [editor, props.isMainInput, props.inputId, mainEditorContext, onEnterRef, enterSubmenu]);

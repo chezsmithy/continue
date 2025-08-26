@@ -1,0 +1,7 @@
+.block-settings-toolbar-icon-selected {
+  color: var(--vsc-badge-foreground);
+}
+
+.block-settings-toolbar-title {
+  color: var(--vsc-badge-foreground);
+}

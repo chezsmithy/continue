@@ -71,8 +71,10 @@ export function createEditorConfig(options: {
   dispatch: AppDispatch;
   openLumpContext?: (query: string) => void;
   contextSectionActiveRef?: React.MutableRefObject<boolean>;
+  openLumpSlashCommands?: (query: string) => void;
+  slashCommandsSectionActiveRef?: React.MutableRefObject<boolean>;
 }) {
-  const { props, ideMessenger, dispatch, openLumpContext, contextSectionActiveRef } = options;
+  const { props, ideMessenger, dispatch, openLumpContext, contextSectionActiveRef, openLumpSlashCommands, slashCommandsSectionActiveRef } = options;
 
   const posthog = usePostHog();
 
@@ -205,6 +207,13 @@ export function createEditorConfig(options: {
                 return true;
               }
 
+              // Forward to slash commands section if active
+              if (slashCommandsSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+                window.dispatchEvent(new CustomEvent('lump-slash-commands-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
               if (inDropdownRef.current) {
                 return false;
               }
@@ -258,6 +267,13 @@ export function createEditorConfig(options: {
                 return true;
               }
 
+              // Forward to slash commands section if active
+              if (slashCommandsSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'ArrowUp' });
+                window.dispatchEvent(new CustomEvent('lump-slash-commands-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
               if (this.editor.state.selection.anchor > 1) {
                 return false;
               }
@@ -280,6 +296,13 @@ export function createEditorConfig(options: {
               if (contextSectionActiveRef?.current) {
                 const keyEvent = new KeyboardEvent('keydown', { key: 'Escape' });
                 window.dispatchEvent(new CustomEvent('lump-context-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
+              // Forward to slash commands section if active (to close it)
+              if (slashCommandsSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+                window.dispatchEvent(new CustomEvent('lump-slash-commands-keyboard', { detail: { keyEvent } }));
                 return true;
               }
 
@@ -311,6 +334,13 @@ export function createEditorConfig(options: {
                 return true;
               }
 
+              // Forward to slash commands section if active
+              if (slashCommandsSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'ArrowDown' });
+                window.dispatchEvent(new CustomEvent('lump-slash-commands-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
               if (
                 this.editor.state.selection.anchor <
                 this.editor.state.doc.content.size - 1
@@ -333,6 +363,13 @@ export function createEditorConfig(options: {
               if (contextSectionActiveRef?.current) {
                 const keyEvent = new KeyboardEvent('keydown', { key: 'Tab' });
                 window.dispatchEvent(new CustomEvent('lump-context-keyboard', { detail: { keyEvent } }));
+                return true;
+              }
+
+              // Forward to slash commands section if active
+              if (slashCommandsSectionActiveRef?.current) {
+                const keyEvent = new KeyboardEvent('keydown', { key: 'Tab' });
+                window.dispatchEvent(new CustomEvent('lump-slash-commands-keyboard', { detail: { keyEvent } }));
                 return true;
               }
               return false;
@@ -365,7 +402,7 @@ export function createEditorConfig(options: {
           ideMessenger,
           dispatch,
           props.inputId,
-          openLumpContext,
+          openLumpSlashCommands,
         ),
       }),
       PromptBlock,
@@ -434,5 +471,29 @@ export function createEditorConfig(options: {
     });
   };
 
-  return { editor, onEnterRef, enterSubmenu, resetEditorAfterAt };
+  // Simple function to reset editor text after / (for lump slash commands system)
+  const resetEditorAfterSlash = (editor: Editor) => {
+    const contents = editor.getText();
+    const indexOfSlash = contents.lastIndexOf("/");
+    if (indexOfSlash === -1) {
+      return;
+    }
+
+    // Find the position of the last / character
+    let startPos = editor.state.selection.anchor;
+    while (
+      startPos > 0 &&
+      editor.state.doc.textBetween(startPos, startPos + 1) !== "/"
+    ) {
+      startPos--;
+    }
+
+    // Delete everything from the / character onwards (including the /)
+    editor.commands.deleteRange({
+      from: startPos,
+      to: editor.state.selection.anchor,
+    });
+  };
+
+  return { editor, onEnterRef, enterSubmenu, resetEditorAfterAt, resetEditorAfterSlash };
 }

@@ -27,6 +27,8 @@ interface MainEditorContextType {
   onEnterRef: React.MutableRefObject<(modifiers: InputModifiers) => void>;
   /** Function to reset editor text back to just @ (for lump context) */
   resetEditorAfterAt?: (editor: Editor) => void;
+  /** Function to reset editor text after / (for lump slash commands) */
+  resetEditorAfterSlash?: (editor: Editor) => void;
 }
 
 const initialState: MainEditorContextType = {
