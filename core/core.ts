@@ -83,6 +83,7 @@ import { NextEditProvider } from "./nextEdit/NextEditProvider";
 import type { FromCoreProtocol, ToCoreProtocol } from "./protocol";
 import { OnboardingModes } from "./protocol/core";
 import type { IMessenger, Message } from "./protocol/messenger";
+import { ToolPermissionsService } from "./tools/permissions";
 import { ContinueError, ContinueErrorReason } from "./util/errors";
 import { shareSession } from "./util/historyUtils";
 import { Logger } from "./util/Logger.js";
@@ -277,6 +278,15 @@ export class Core {
         (..._) => Promise.resolve([]),
         "fineTuned",
       );
+
+      // Initialize tool permissions service
+      void ToolPermissionsService.getInstance()
+        .initialize()
+        .catch((e) => {
+          Logger.warn("Failed to initialize tool permissions service", {
+            error: e,
+          });
+        });
 
       this.registerMessageHandlers(ideSettingsPromise);
     } catch (error) {
@@ -1094,7 +1104,7 @@ export class Core {
     on(
       "tools/evaluatePolicy",
       async ({ data: { toolName, basePolicy, parsedArgs, processedArgs } }) => {
-        const { config } = await this.configHandler.loadConfig();
+        const { configawait this.configHandler.loadConfig();
         if (!config) {
           throw new Error("Config not loaded");
         }
@@ -1106,10 +1116,49 @@ export class Core {
 
         // Extract display value for specific tools
         let displayValue: string | undefined;
-        if (toolName === "runTerminalCommand" && parsedArgs.command) {
+        if (
+          (toolName === "runTerminalCommand" ||
+            toolName === "run_terminal_command") &&
+          parsedArgs.command
+        ) {
           displayValue = parsedArgs.command as string;
         }
 
+        // Apply permissions.yaml restrictions, which includes:
+        // 1. Static YAML pattern matching
+        // 2. Dynamic tool-specific policy evaluation (e.g., file access policies)
+        // The service receives the UI basePolicy and returns the most restrictive
+        // policy after considering both YAML rules and tool-specific evaluation
+        const permissionsService = ToolPermissionsService.getInstance();
+
+        if (permissionsService.isEnabled()) {
+          const permissionResult = permissionsService.checkPermission(
+            tool,
+            parsedArgs,
+            processedArgs,
+          );
+
+          // Convert permission to ToolPolicy
+          let effectivePolicy:
+            | "disabled"
+            | "allowedWithPermission"
+            | "allowedWithoutPermission";
+          switch (permissionResult.permission) {
+            case "exclude":
+              effectivePolicy = "disabled";
+              break;
+            case "ask":
+              effectivePolicy = "allowedWithPermission";
+              break;
+            case "allow":
+              effectivePolicy = "allowedWithoutPermission";
+              break;
+          }
+
+          return { policy: effectivePolicy, displayValue };
+        }
+
+        // No permissions.yaml, just apply tool's dynamic evaluation if it exists
         if (tool.evaluateToolCallPolicy) {
           const evaluatedPolicy = tool.evaluateToolCallPolicy(
             basePolicy,
@@ -1118,6 +1167,8 @@ export class Core {
           );
           return { policy: evaluatedPolicy, displayValue };
         }
+
+        // No permissions.yaml and no tool evaluation, return original basePolicy
         return { policy: basePolicy, displayValue };
       },
     );

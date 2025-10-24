@@ -56,6 +56,9 @@ export enum ContinueErrorReason {
   CommandExecutionFailed = "command_execution_failed",
   CommandNotAvailableInRemote = "command_not_available_in_remote",
 
+  // Tool Permissions
+  ToolPermissionDenied = "tool_permission_denied",
+
   // Search
   SearchExecutionFailed = "search_execution_failed",
 

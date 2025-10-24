@@ -4,6 +4,7 @@ import { MCPManagerSingleton } from "../context/mcp/MCPManagerSingleton";
 import { ContinueError, ContinueErrorReason } from "../util/errors";
 import { canParseUrl } from "../util/url";
 import { BuiltInToolNames } from "./builtIn";
+import { ToolPermissionsService } from "./permissions";
 
 import { codebaseToolImpl } from "./implementations/codebaseTool";
 import { createNewFileImpl } from "./implementations/createNewFile";
@@ -202,6 +203,28 @@ export async function callTool(
 }> {
   try {
     const args = safeParseToolCallArgs(toolCall);
+
+    // Check permissions before executing the tool
+    const permissionsService = ToolPermissionsService.getInstance();
+    if (permissionsService.isEnabled()) {
+      const permissionResult = permissionsService.checkPermission(
+        tool,
+        args,
+        undefined,
+      );
+
+      // If tool is excluded/disabled, throw an error
+      if (permissionResult.permission === "exclude") {
+        throw new ContinueError(
+          ContinueErrorReason.ToolPermissionDenied,
+          `Tool "${tool.function.name}" is disabled by permissions policy`,
+        );
+      }
+
+      // Note: "ask" permission should be handled by the UI before this point
+      // If we get here with "ask", it means the UI already approved it
+    }
+
     const contextItems = tool.uri
       ? await callToolFromUri(tool.uri, args, extras)
       : await callBuiltInTool(tool.function.name, args, extras);
